@@ -1,0 +1,17 @@
+Blue Rose Research is seeking a Senior Data Scientist to join our growing risk intelligence team. You will design, train, and deploy models that detect fraud, predict risk, and support critical decision systems across partner organizations.
+
+Responsibilities:
+- Build and own end-to-end machine learning models from exploration through deployment.
+- Lead model development for fraud detection, risk scoring, and identity verification.
+- Work closely with engineering and product to translate ambiguous business problems into scalable solutions.
+- Analyze model performance, explain tradeoffs, and communicate results to stakeholders.
+- Develop high-quality features, pipelines, and monitoring frameworks.
+- Mentor junior scientists and contribute to team-wide best practices.
+
+Qualifications:
+- 5+ years experience in applied ML or data science roles.
+- Strong experience with Python, SQL, and statistical modeling.
+- Experience working with production ML systems and real-world datasets.
+- Familiarity with fraud, risk, credit, trust & safety, or identity data strongly preferred.
+- Experience with deep learning, anomaly detection, time-series, or forecasting is a plus.
+- Comfort operating in fast-moving, ambiguous environments with ownership and autonomy.

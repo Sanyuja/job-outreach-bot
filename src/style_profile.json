@@ -1,0 +1,33 @@
+{
+  "tone": "confident, enthusiastic, professional",
+  "formality": "semi-formal",
+  "sentence_style": "concise, direct, varied sentence length",
+  "voice_principles": [
+    "use first person",
+    "be specific about skills and interests",
+    "express enthusiasm",
+    "be concise and direct"
+  ],
+  "phrases_to_use": [
+    "I'm very interested in",
+    "I'd love to",
+    "I've led",
+    "I think I’d be a strong match for",
+    "Thank you",
+    "Thanks"
+  ],
+  "phrases_to_avoid": [
+    "I believe",
+    "I feel",
+    "I'm passionate about",
+    "synergy",
+    "leverage",
+    "at the end of the day"
+  ],
+  "do_nots": [
+    "do not sound overly casual",
+    "do not use vague language",
+    "do not over-explain",
+    "do not use corporate cliches"
+  ]
+}

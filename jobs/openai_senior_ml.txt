@@ -1,0 +1,4 @@
+We are seeking a Senior Machine Learning Engineer to build and maintain systems that power risk detection and user trust. 
+Responsibilities include deploying models to production, designing scalable pipelines, and collaborating with product, engineering, and research teams.
+Experience working with ambiguous requirements and owning models from experimentation to monitoring is required.
+Preferred experience includes fraud detection, anomaly detection, or applied ML in high-stakes environments.
