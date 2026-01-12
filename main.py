@@ -2,8 +2,10 @@
 
 import argparse
 import sys
+
 from src.email_generator import draft_email
 from src.gmail_draft import create_draft_with_resume
+from src.scraper import fetch_job_description
 
 
 def main():
@@ -12,10 +14,16 @@ def main():
     parser.add_argument("--url", required=True, help="Job Posting URL")
     parser.add_argument("--manager", required=True, help="Hiring Manager Name")
     parser.add_argument("--company", required=True, help="Company Name")
+
     parser.add_argument(
         "--jd_file",
         required=False,
         help="Path to a text file containing the full job description",
+    )
+    parser.add_argument(
+        "--jd_url",
+        required=False,
+        help="If provided, scrape the job description from this URL.",
     )
     parser.add_argument(
         "--company_url",
@@ -48,14 +56,23 @@ def main():
             print(f"[ERROR] --{field_name} cannot be empty or '...'. Please pass a real value.")
             sys.exit(1)
 
+    # Decide where job description comes from
     job_description = ""
     if args.jd_file:
         try:
             with open(args.jd_file, "r", encoding="utf-8") as f:
                 job_description = f.read().strip()
+            print(f"[JD] Loaded job description from file: {args.jd_file}")
         except Exception as e:
             print(f"[WARN] Could not read job description file '{args.jd_file}': {e}")
             job_description = ""
+    elif args.jd_url:
+        print(f"[JD] Scraping job description from URL: {args.jd_url}")
+        job_description = fetch_job_description(args.jd_url.strip())
+        if not job_description:
+            print("[WARN] Scraper returned empty job description.")
+    else:
+        print("[JD] No job description source provided (no file or URL). Proceeding without JD context.")
 
     email_html = draft_email(
         job_title=args.title.strip(),
@@ -75,9 +92,8 @@ def main():
             print("[ERROR] --to_email is required when using --create_draft.")
             sys.exit(1)
 
-        subject = f"Senior Data Scientist application – {args.company.strip()}"
-        # You can tweak the subject line logic if you want:
-        # subject = f"Application for {args.title.strip()} at {args.company.strip()}"
+        # Subject line – tweak if you like
+        subject = f"{args.title.strip()} application – {args.company.strip()}"
 
         try:
             create_draft_with_resume(
