@@ -2,6 +2,7 @@
 .env
 credentials.json
 token.json
+token_sheets.json
 
 # Virtual Environment
 .venv/
