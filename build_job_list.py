@@ -1,19 +1,16 @@
 # build_job_list.py
 
-# build_job_list.py
-
 import argparse
 import csv
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-load_dotenv()  # <-- add this
+
+load_dotenv()
 
 from src.job_profile_rules import is_relevant_title, guess_use_jd
 from src.contact_enricher import find_contacts_for_company
-
-
 
 def build_job_list(raw_csv_path: str, output_csv_path: str):
     raw_path = Path(raw_csv_path)
