@@ -22,6 +22,7 @@ POSITIVE_KEYWORDS = [
     "fraud data scientist",
     "risk modeling",
     "risk analytics",
+    "Data Analyst"
 ]
 
 # Titles you want to avoid
@@ -44,7 +45,7 @@ def normalize_title(title: str) -> str:
     return title.strip().lower()
 
 
-def is_relevant_title(title: str) -> bool:
+def is_title_relevant(title: str) -> bool:
     """
     Simple heuristic:
     - Title must contain at least one POSITIVE keyword

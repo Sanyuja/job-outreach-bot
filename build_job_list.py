@@ -1,113 +1,219 @@
-# build_job_list.py
+#!/usr/bin/env python
+"""
+Build a list of (job, contact) pairs from raw_jobs.csv.
 
-# build_job_list.py
+- Reads a "raw jobs" CSV (typically exported from Google Sheets via export_sheet_to_csv.py)
+- Infers company_domain from company_url or job_url if missing
+- Filters out obviously irrelevant roles using job_profile_rules.is_title_relevant(...)
+- Uses contact_enricher.enrich_contacts(...) to fetch contacts for each company/domain
+- Writes an output CSV with one row per (job, contact) ready for batch_apply.py
+"""
 
 import argparse
 import csv
-import sys
+import re
 from pathlib import Path
+from urllib.parse import urlparse
+from typing import List, Dict, Any
 
-from dotenv import load_dotenv
-load_dotenv()  # <-- add this
-
-from src.job_profile_rules import is_relevant_title, guess_use_jd
-from src.contact_enricher import find_contacts_for_company
-
+from src.contact_enricher import enrich_contacts  # your existing Hunter + fallback logic
+from src.job_profile_rules import is_title_relevant  # your existing relevance rules
 
 
-def build_job_list(raw_csv_path: str, output_csv_path: str):
-    raw_path = Path(raw_csv_path)
-    if not raw_path.exists():
-        print(f"[ERROR] Raw jobs CSV not found: {raw_path}")
-        sys.exit(1)
+def infer_company_domain(
+    company_domain: str | None,
+    company_url: str | None,
+    job_url: str | None,
+) -> str:
+    """
+    Try to derive a clean company domain.
 
-    out_path = Path(output_csv_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    Priority:
+      1) Explicit company_domain if present (normalize)
+      2) Host from company_url
+      3) Host from job_url, but skip known ATS hosts (greenhouse.io, lever.co, ashbyhq.com)
 
-    with raw_path.open("r", encoding="utf-8") as f:
+    Returns e.g. 'bluerose.ai' or '' if we can't infer.
+    """
+
+    # 1) If already present, normalize and use it
+    if company_domain:
+        d = company_domain.strip().lower()
+        # Remove protocol
+        d = re.sub(r"^https?://", "", d)
+        # Strip leading 'www.'
+        if d.startswith("www."):
+            d = d[4:]
+        # Drop any path
+        d = d.split("/")[0]
+        return d
+
+    def host_from_url(url: str | None) -> str | None:
+        if not url:
+            return None
+        u = url.strip()
+        # Handle bare domains like "bluerose.ai"
+        if not u.startswith("http://") and not u.startswith("https://"):
+            u = "https://" + u
+        parsed = urlparse(u)
+        host = (parsed.netloc or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host or None
+
+    # 2) Try company_url
+    host = host_from_url(company_url)
+    if host:
+        return host
+
+    # 3) Try job_url, but skip ATS hosts
+    host = host_from_url(job_url)
+    if host and not any(ats in host for ats in ["greenhouse.io", "lever.co", "ashbyhq.com"]):
+        return host
+
+    return ""
+
+
+def build_job_list(raw_csv: Path, output_csv: Path) -> None:
+    print(f"[INFO] Building job list from {raw_csv} \u2192 {output_csv}")
+
+    if not raw_csv.exists():
+        raise FileNotFoundError(f"Raw jobs CSV not found: {raw_csv}")
+
+    rows: List[Dict[str, Any]] = []
+    with raw_csv.open("r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        raw_rows = list(reader)
+        for row in reader:
+            # Skip completely empty lines
+            if not any(v.strip() for v in row.values() if isinstance(v, str)):
+                continue
+            rows.append(row)
 
-    if not raw_rows:
-        print(f"[INFO] No rows in raw jobs CSV: {raw_path}")
-        return
+    print(f"[INFO] Loaded {len(rows)} raw jobs from {raw_csv}")
 
-    print(f"[INFO] Loaded {len(raw_rows)} raw jobs from {raw_path}")
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    contact_rows: List[Dict[str, Any]] = []
 
-    fieldnames = [
-        "job_id",
-        "job_title",
-        "job_url",
-        "company",
-        "company_url",
-        "contact_name",
-        "contact_email",
-        "contact_title",
-        "use_jd",
-    ]
+    for idx, raw in enumerate(rows, start=1):
+        title = (raw.get("job_title") or "").strip()
+        job_url = (raw.get("job_url") or "").strip()
+        company = (raw.get("company") or "").strip()
+        company_url = (raw.get("company_url") or "").strip()
+        company_domain_raw = (raw.get("company_domain") or "").strip()
+        location = (raw.get("location") or "").strip()
+        job_id = (raw.get("job_id") or "").strip()
 
-    job_id_counter = 0
-    written_rows = 0
+        # Infer the domain in a robust way
+        company_domain = infer_company_domain(company_domain_raw, company_url, job_url)
 
-    with out_path.open("w", encoding="utf-8", newline="") as outf:
-        writer = csv.DictWriter(outf, fieldnames=fieldnames)
-        writer.writeheader()
+        # Basic sanity check
+        if not title or not job_url or not company:
+            print(f"[SKIP] Missing basic fields in row: {raw}")
+            continue
 
-        for raw in raw_rows:
-            title = raw.get("job_title", "").strip()
-            job_url = raw.get("job_url", "").strip()
-            company = raw.get("company", "").strip()
-            company_url = raw.get("company_url", "").strip()
-            company_domain = raw.get("company_domain", "").strip()
+        print(f"\n[JOB] {idx}: '{title}' @ {company}")
 
-            if not title or not job_url or not company:
-                print(f"[SKIP] Missing basic fields in row: {raw}")
+        # Filter by title relevance using your existing rules
+        if not is_title_relevant(title):
+            print(f"[FILTER] Skipping non-relevant title: '{title}' @ {company}")
+            continue
+
+        # Enrich contacts for this company/domain (Hunter + fallbacks handled inside)
+        contacts = enrich_contacts(company, company_domain)
+        if not contacts:
+            print(f"[INFO] No contacts found for {company}, skipping this job.")
+            continue
+
+        # Build one output row per contact
+        for contact in contacts:
+            contact_email = (contact.get("email") or contact.get("value") or "").strip()
+            if not contact_email:
                 continue
 
-            if not is_relevant_title(title):
-                print(f"[FILTER] Skipping non-relevant title: '{title}' @ {company}")
-                continue
+            contact_name = (
+                f"{(contact.get('first_name') or '').strip()} {(contact.get('last_name') or '').strip()}"
+            ).strip()
+            contact_role = (contact.get("position") or "").strip()
 
-            job_id_counter += 1
-            job_id = job_id_counter
-            use_jd = guess_use_jd(job_url)
-
-            print(f"\n[JOB] {job_id}: '{title}' @ {company}")
-            contacts = find_contacts_for_company(
-                company_name=company,
-                company_url=company_url or None,
-                company_domain=company_domain or None,
-                max_contacts=5,
+            contact_rows.append(
+                {
+                    "job_id": job_id,
+                    "job_title": title,
+                    "job_url": job_url,
+                    "company": company,
+                    "company_domain": company_domain,
+                    "company_url": company_url,
+                    "location": location,
+                    "contact_name": contact_name,
+                    "contact_email": contact_email,
+                    "contact_role": contact_role,
+                    "source": contact.get("source") or "hunter",
+                }
             )
 
-            if not contacts:
-                print(f"[INFO] No contacts found for {company}, skipping this job.")
-                continue
+    # Write the output CSV
+    if contact_rows:
+        fieldnames = [
+            "job_id",
+            "job_title",
+            "job_url",
+            "company",
+            "company_domain",
+            "company_url",
+            "location",
+            "contact_name",
+            "contact_email",
+            "contact_role",
+            "source",
+        ]
+        with output_csv.open("w", newline="", encoding="utf-8") as f_out:
+            writer = csv.DictWriter(f_out, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(contact_rows)
+        print(f"\n[RESULT] Wrote {len(contact_rows)} contact rows to {output_csv}")
+    else:
+        # If no contacts matched, still create an empty file with header so batch_apply.py
+        # can run without exploding.
+        fieldnames = [
+            "job_id",
+            "job_title",
+            "job_url",
+            "company",
+            "company_domain",
+            "company_url",
+            "location",
+            "contact_name",
+            "contact_email",
+            "contact_role",
+            "source",
+        ]
+        with output_csv.open("w", newline="", encoding="utf-8") as f_out:
+            writer = csv.DictWriter(f_out, fieldnames=fieldnames)
+            writer.writeheader()
+        print(f"\n[RESULT] Wrote 0 contact rows to {output_csv}")
 
-            for c in contacts:
-                writer.writerow(
-                    {
-                        "job_id": job_id,
-                        "job_title": title,
-                        "job_url": job_url,
-                        "company": company,
-                        "company_url": company_url,
-                        "contact_name": c.get("name") or "",
-                        "contact_email": c.get("email") or "",
-                        "contact_title": c.get("position") or "",
-                        "use_jd": use_jd,
-                    }
-                )
-                written_rows += 1
 
-    print(f"\n[RESULT] Wrote {written_rows} contact rows to {out_path}")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build job-contact list from raw jobs CSV.")
+    parser.add_argument(
+        "--raw_csv",
+        type=str,
+        default="jobs/raw_jobs.csv",
+        help="Path to the raw jobs CSV (exported from Google Sheets).",
+    )
+    parser.add_argument(
+        "--output_csv",
+        type=str,
+        default="jobs/jobs_batch.csv",
+        help="Path to the output CSV with one row per (job, contact).",
+    )
+    args = parser.parse_args()
+
+    raw_path = Path(args.raw_csv)
+    out_path = Path(args.output_csv)
+
+    build_job_list(raw_path, out_path)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Build jobs_batch.csv from raw_jobs.csv")
-    parser.add_argument("--raw_csv", required=True, help="Path to raw jobs CSV")
-    parser.add_argument("--output_csv", required=True, help="Path to output jobs batch CSV")
-    args = parser.parse_args()
-
-    print(f"[INFO] Building job list from {args.raw_csv} → {args.output_csv}")
-    build_job_list(args.raw_csv, args.output_csv)
+    main()

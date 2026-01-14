@@ -170,3 +170,16 @@ def find_contacts_for_company(
 
     print(f"[HUNTER] Selected {len(top)} contacts for {company_name} ({domain})")
     return top
+
+
+def enrich_contacts(company_name: str, company_domain: str | None = None, max_contacts: int = 5) -> List[Dict[str, str]]:
+    """Compatibility alias expected by older scripts.
+
+    Calls `find_contacts_for_company` with a company name and optional domain.
+    """
+    return find_contacts_for_company(
+        company_name=company_name,
+        company_url=None,
+        company_domain=company_domain,
+        max_contacts=max_contacts,
+    )

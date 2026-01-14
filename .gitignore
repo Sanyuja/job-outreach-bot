@@ -1,14 +1,26 @@
-# Environment & Secrets
+# Environment
 .env
+.venv
+venv/
+ENV/
+
+# Credentials & tokens
 credentials.json
 token.json
 token_sheets.json
 
-# Virtual Environment
-.venv/
-venv/
-ENV/
-env/
+# Large data files
+jobs/*.csv
+*.xlsx
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
 # Python
 __pycache__/
@@ -32,15 +44,9 @@ wheels/
 .installed.cfg
 *.egg
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+# Logs
+logs/
+*.log
 
-# Project-specific
+# Resume & private docs
 docs/
-jobs/
-*.pdf

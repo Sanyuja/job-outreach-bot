@@ -1,4 +1,21 @@
 # batch_apply.py
+"""
+# batch_apply
+
+Batch-generate personalized email drafts and attach a resume.
+
+Inputs (CLI):
+- `--csv_path`: `jobs/jobs_batch.csv` with one row per (job,contact)
+- `--resume_path`: path to resume PDF to attach to each draft
+
+Behavior:
+- Optionally scrapes the job description when `use_jd` is set.
+- Uses `src.email_generator.draft_email` to create HTML body.
+- Creates a Gmail draft with `src.gmail_draft.create_draft_with_resume`.
+
+Prerequisites:
+- Valid Gmail OAuth credentials (`credentials.json` and `token.json` with `gmail.compose` scope).
+"""
 
 import argparse
 import csv
